@@ -6,7 +6,7 @@ spawn ssh zhangxiang17@$host
 
 #expect "*yes/no*" { send "yes\r" }
 expect {
-    "*assword*" { send "1991XIANGzhang1719\r"}
+    "*assword*" { send "\r"}
     "*yes/no*" { send "yes\r";exp_continue}
 }
 expect "*$*" { send "$cmd;exit\r" }

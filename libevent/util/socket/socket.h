@@ -23,6 +23,7 @@
 #include <sys/ioctl.h>
 #include <net/if.h>
 #include <netinet/in.h>
+#include <fcntl.h>
 
 namespace xzhang_socket{
     class read_data{
@@ -41,6 +42,9 @@ namespace xzhang_socket{
         }
         int read();
         int write();
+        bool is_listen(){
+            return type;
+        }
         private:
         int _read();
     };
@@ -72,6 +76,25 @@ namespace xzhang_socket{
             tlv& operator =(const tlv&){}
     };
     class socket{
+        int fd;
+        string host;
+        string service;
         public:
+            socket(int fd=-1):fd(fd){}
+            socket(string hostinf);//:分割
+            void get_hostinfo_str(string&value);
+            int create_server();
+            int create_client();
+            int set_noblock();
+            int set_keepalive();
+            int is_alive();
+            int close_rd();
+            int close_wr();
+            int close();
+            ~socket(){
+                if(fd>0){
+                    close(fd);
+                }
+            }
     };
 }

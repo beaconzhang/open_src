@@ -6,7 +6,7 @@ set timeout 10000
 spawn scp zhangxiang17@$host:$from_file $to_file
 
 expect {
-    "*assword*" { send "1991XIANGzhang1719\r"}
+    "*assword*" { send "\r"}
     "*yes/no*" { send "yes\r";exp_continue}
 }
 
