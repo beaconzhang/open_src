@@ -1,0 +1,14 @@
+#!/usr/bin/expect                                                                                                                                                                                        
+set host [lindex $argv 0]
+set cmd [lindex $argv 1]
+set timeout 10000
+spawn ssh zhangxiang17@$host
+
+#expect "*yes/no*" { send "yes\r" }
+expect {
+    "*assword*" { send "1991XIANGzhang1719\r"}
+    "*yes/no*" { send "yes\r";exp_continue}
+}
+expect "*$*" { send "$cmd;exit\r" }
+
+expect eof

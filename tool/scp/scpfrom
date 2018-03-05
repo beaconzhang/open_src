@@ -1,0 +1,13 @@
+#!/usr/bin/expect                                                                                                                                                                                        
+set host [lindex $argv 0]
+set from_file [lindex $argv 1]
+set to_file [lindex $argv 2]
+set timeout 10000
+spawn scp zhangxiang17@$host:$from_file $to_file
+
+expect {
+    "*assword*" { send "1991XIANGzhang1719\r"}
+    "*yes/no*" { send "yes\r";exp_continue}
+}
+
+expect eof
