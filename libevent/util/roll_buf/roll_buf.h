@@ -18,82 +18,77 @@ class RingBuffer {
 
 public:
   // Events_size must be a power of two.
-  explicit RingBuffer(uint64_t event_size) :
-    event_size_(event_size),
-    publisher_sequence_(-1),
-    cached_consumer_sequence_(-1),
-    events_(new T[event_size]),
-    consumer_sequence_(-1) {
-  }
+  explicit RingBuffer(uint64_t capacity) :
+    capacity(capacity),
+    produce_pos(0),
+    consume_pos(0),
+    mutex(PTHREAD_MUTEX_INITIALIZER),
+    produce_cond(PTHREAD_COND_INITIALIZER),
+    consum_cond(PTHREAD_COND_INITIALIZER){
+       elemet=new T*[capacity]; 
+    }
 
   // No copy constructor.
   RingBuffer(const RingBuffer&) = delete;
   RingBuffer& operator = (const RingBuffer &) = delete;
 
-  // Used to get an event for a given sequence.
-  //Can be called by both the producer and consumer.
-  inline T* get(int64_t sequence) {
-    return &events_[sequence & (event_size_ - 1)];  // size - 1 is the mask here.
-  }
 
-  // Can be called by either producer or consumer.
-  inline uint64_t getBufferSize() const {
-    return event_size_;
+  inline uint64_t get_capacity() const {
+    return capacity;
   }
-
-  // Called by the producer to get the next publish slot.
-  // Will block till there is a slot to claim.
-  int64_t nextProducerSequence() {
-    int64_t current_producer_sequence = publisher_sequence_.load(std::memory_order::memory_order_relaxed);
-    int64_t next_producer_sequence = current_producer_sequence + 1;
-    int64_t wrap_point = next_producer_sequence - event_size_;
-    // TODO(Rajiv): Combine pausing with backoff + sleep.
-    if (cached_consumer_sequence_ > wrap_point) {
-      return next_producer_sequence;
+  iniline uint64_t get_element_size()const{
+       return produce_pos-consume_pos;
+  }
+    void push_back(T*tval){
+        pthread_mutex_lock(&mutex);
+        while(produce_pos-consume_pos>=capacity){
+            pthread_cond_wait(&consume_cond,&mutex);
+        }
+        element[(produce_pos++)&(capacity-1)]=tval;
+        if(consume_pos>=capacity){
+            consume_pos-=capacity;
+            produce_pos-=capacity;
+        }
+        pthread_cond_signal(&produce_cond);
+        pthread_mutex_unlock(&mutex);
     }
-    cached_consumer_sequence_ = getConsumerSequence();
-    while (cached_consumer_sequence_ <= wrap_point) {
-      _mm_pause();
-      cached_consumer_sequence_ = getConsumerSequence();
+    void push_back(const vector<T*>&vec){
+        pthread_mutex_lock(&mutex);
+        uint32_t start_pos=0;
+        while(start_pos<vec.size()){
+            while(produce_pos-consume_pos>=capacity){
+                pthread_cond_wait(&consume_cond,&mutex);
+            }
+            for(;start_pos<vec.size()&&produce_pos-consume_pos<capacity;){
+                element[(produce_pos++)&(capacity-1)]=vec[start_pos++];
+            }
+        }
+        if(consume_pos>=capacity){
+            consume_pos-=capacity;
+            produce_pos-=capacity;
+        }
+        pthread_cond_signal(&produce_cond);
+        pthread_mutex_unlock(&mutex);
     }
-    return next_producer_sequence;
-  }
+    void pop_front(T*&tval){
+        tval=NULL;
 
-  // Called by the producer to see what entries the consumer is done with.
-  inline int64_t getConsumerSequence() const {
-    return consumer_sequence_.load(std::memory_order::memory_order_acquire);
-  }
-
-  // Called by the producer after it has set the correct event entries.
-  inline void publish(int64_t sequence) {
-    publisher_sequence_.store(sequence, std::memory_order::memory_order_release);
-  }
-
-  // Called by the consumer to see where the producer is at.
-  inline int64_t getProducerSequence() const {
-    return publisher_sequence_.load(std::memory_order::memory_order_acquire);
-  }
-
-  // Called by the consumer to set the latest consumed sequence.
-  inline void markConsumed(int64_t sequence) {
-    // Assert if sequence is higher than the previous one?
-    consumer_sequence_.store(sequence, std::memory_order::memory_order_release);
-  }
+    }
 
   ~RingBuffer() {
     printf("Deleted Ring Buffer\n");
-    delete[] events_;
+    delete[] element;
   }
 
 private:
 
-  int64_t event_size_;
-  std::atomic<int64_t> publisher_sequence_;
-  int64_t cached_consumer_sequence_;
-  T* events_;
-  // Ensure that the consumer sequence is on it's own cache line to prevent false sharing.
-  std::atomic<int64_t> consumer_sequence_ __attribute__ ((aligned (CACHE_LINE_SIZE)));
-
+  uint64_t capacity;//2的幂次方
+  T** element;
+  uint64_t produce_pos;
+  uint64_t consume_pos;
+  pthread_mutex_t mutex;
+  pthread_cond_t produce_cond;
+  pthread_cond_t consume_cond;
 } __attribute__ ((aligned(CACHE_LINE_SIZE)));
 
 }  // processor
