@@ -6,45 +6,50 @@
 #include <atomic>
 #include <cinttypes>
 #include <cstdio>
+#include <pthread.h>
+#include <iostream>
+#include <vector>
+using namespace std;
 
-namespace processor {
 
-#define CACHE_LINE_SIZE 64
 
 // A simple ring buffer for single producers and single consumers.
 // Does not support parallel consumers for now.
 template<typename T>
-class RingBuffer {
+class roll_buf {
 
 public:
   // Events_size must be a power of two.
-  explicit RingBuffer(uint64_t capacity) :
+  explicit roll_buf(uint64_t capacity) :
     capacity(capacity),
     produce_pos(0),
     consume_pos(0),
+	in(0),
+  	out(0),
     mutex(PTHREAD_MUTEX_INITIALIZER),
     produce_cond(PTHREAD_COND_INITIALIZER),
-    consum_cond(PTHREAD_COND_INITIALIZER){
-       elemet=new T[capacity]; 
+    consume_cond(PTHREAD_COND_INITIALIZER){
+       element=new T[capacity]; 
+	   timeout.tv_sec=0;
+	   timeout.tv_nsec=1000000;
     }
 
-  // No copy constructor.
-  RingBuffer(const RingBuffer&) = delete;
-  RingBuffer& operator = (const RingBuffer &) = delete;
 
 
   inline uint64_t get_capacity() const {
     return capacity;
   }
-  iniline uint64_t get_element_size()const{
+  inline uint64_t get_element_size()const{
+	   cerr<<"in:"<<in<<" out:"<<out<<"\n";
        return produce_pos-consume_pos;
   }
-    void push_back(Ttval){
+    void push_back(const T& tval){
         pthread_mutex_lock(&mutex);
         while(produce_pos-consume_pos>=capacity){
-            pthread_cond_wait(&consume_cond,&mutex);
+            pthread_cond_timedwait(&consume_cond,&mutex,&timeout);
         }
         element[(produce_pos++)&(capacity-1)]=tval;
+		in++;
         pthread_cond_signal(&produce_cond);
         pthread_mutex_unlock(&mutex);
     }
@@ -53,15 +58,12 @@ public:
         uint32_t start_pos=0;
         while(start_pos<vec.size()){
             while(produce_pos-consume_pos>=capacity){
-                pthread_cond_wait(&consume_cond,&mutex);
+                pthread_cond_timedwait(&consume_cond,&mutex,&timeout);
             }
             for(;start_pos<vec.size()&&produce_pos-consume_pos<capacity;){
                 element[(produce_pos++)&(capacity-1)]=vec[start_pos++];
+				in++;
             }
-        }
-        if(consume_pos>=capacity){
-            consume_pos-=capacity;
-            produce_pos-=capacity;
         }
         pthread_cond_signal(&produce_cond);
         pthread_mutex_unlock(&mutex);
@@ -70,9 +72,10 @@ public:
         tval=NULL;
         pthread_mutex_lock(&mutex);
         while(produce_pos<=consume_pos){
-            pthread_cond_wait(&produce_cond,&mutex);
+            pthread_cond_timedwait(&produce_cond,&mutex,&timeout);
         }
         tval=element[consume_pos++];
+		out++;
         if(consume_pos>=capacity){
             consume_pos-=capacity;
             produce_pos-=capacity;
@@ -87,12 +90,13 @@ public:
         }
         vec.clear();
         pthread_mutex_lock(&mutex);
-        while(produec_pos<=consume_pos){
-            pthread_cond_wait(&produce_cond,&mutex);
+        while(produce_pos<=consume_pos){
+            pthread_cond_timedwait(&produce_cond,&mutex,&timeout);
         }
         for(;num>0&&consume_pos<produce_pos;){
-            vec.push_back(element[consume_pos++]);
+            vec.push_back(element[(consume_pos++)&(capacity-1)]);
             num--;
+			out++;
         }
         if(consume_pos>=capacity){
             consume_pos-=capacity;
@@ -102,22 +106,28 @@ public:
         pthread_mutex_unlock(&mutex);
     }
 
-  ~RingBuffer() {
+  ~roll_buf() {
     printf("Deleted Ring Buffer\n");
     delete[] element;
   }
 
 private:
+  // No copy constructor.
+  roll_buf(const roll_buf&){}
+  roll_buf& operator = (const roll_buf &){}
 
   uint64_t capacity;//2的幂次方
-  T element;
+  T* element;
   uint64_t produce_pos;
   uint64_t consume_pos;
+  //debug
+  uint64_t in;
+  uint64_t out;
   pthread_mutex_t mutex;
   pthread_cond_t produce_cond;
   pthread_cond_t consume_cond;
-} __attribute__ ((aligned(CACHE_LINE_SIZE)));
+  struct timespec timeout;
+};
 
-}  // processor
 
 #endif
