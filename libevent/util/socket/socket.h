@@ -45,6 +45,9 @@ namespace xzhang_socket{
         bool is_listen(){
             return type;
         }
+		int get_sockfd(){
+			return fd;
+		}
         private:
         int _read();
     };
