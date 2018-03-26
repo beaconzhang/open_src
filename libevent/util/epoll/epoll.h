@@ -2,7 +2,10 @@
 #include <sys/epoll.h>
 #include <vector>
 #include <iostream>
+#include <unorder_map>
+#include "bitmap.h"
 using namespace std;
+using namespace xzhang_bitmap;
 
 namespace xzhang_epoll{
     template <class T,class C>
@@ -11,10 +14,14 @@ namespace xzhang_epoll{
         int maxevent;
         struct epoll_event* ret;
         C* roll_buf;
+		C* out_roll_buf;
+		unorder_map<int,vector<T*> >um;
+
         public:
-            epoll(int maxevent=1024){
+            epoll(C* out_roll_buf=NULL,int maxevent=1024):out_roll_buf(out_roll_buf){
                 efd=epoll_create1(O_CLOEXEC);
                 ret=new struct epoll_event[maxevent];
+				roll_buf=new C();
             }
             int add(int fd,struct epoll_event* pe ){
                 return epoll_ctl(efd, EPOLL_CTL_ADD, fd, pe);
@@ -27,7 +34,7 @@ namespace xzhang_epoll{
             }
             void start(){
                 while(1){
-                   int n=epoll_wait(efd,ret,maxevent,ret,-1);//1s timeout
+                   int n=epoll_wait(efd,ret,maxevent,-1);//1s timeout
                    vector<T*>vec;
                    for(int i=0;i<n;i++){
                         T* tval=(T*)(ret[i].data.ptr);
@@ -40,6 +47,7 @@ namespace xzhang_epoll{
                           // Stream socket peer closed connection, or shut down writing half of connection.
                           // We still to handle disconnection when read()/recv() return 0 or -1 just to be sure.
                           printf("Closed connection on descriptor vis EPOLLRDHUP %d\n", tval->fd);
+
                           // Closing the descriptor will make epoll remove it from the set of descriptors which are monitored.
                           close(tval->fd);
                           delete tval;
@@ -91,6 +99,7 @@ namespace xzhang_epoll{
                                     }else{
                                         vec.push_back(tval);
                                         tval=new T(false,tval->fd,0);
+										is_not_exist=true;
                                     }
                                 }
                             }
@@ -99,10 +108,68 @@ namespace xzhang_epoll{
                    roll_buf->push_back(vec);
                 }
             }
+			void write(){
+				vector<T*> vec;
+				while(1){
+					vec.clear();
+					int n=epoll_wait(efd,ret,maxevent,1);
+					out_roll_buf->pop_front(vec,out_roll_buf->get_element_size());
+					for(vector<T*>::iterator iter=vec.begin();iter!=vec.end();\
+							iter++){
+						int fd=(*iter)->get_sockfd();
+						vector<T*>tmp=um[fd];
+						if(!tmp){
+							um[fd]=new vector<T*>;
+							//添加fd到efd中
+							struct epoll_event ee;
+							ee.events= EPOLLOUT | EPOLLRDHUP | EPOLLET;
+							ee.data.fd=fd;
+                            int retval = epoll_ctl(epfd, EPOLL_CTL_ADD, cfd, &ee);
+                            if (retval == -1) {
+                              perror("epoll_ctl");
+                              abort();
+                            }
+						}
+						um[fd]->push_back(*iter);
+					}
+					for(int i=0;i<n;i++){
+						int fd=ret[i].data.fd;
+                        if ((ret[i].events & EPOLLERR) || (ret[i].events & EPOLLHUP) || (!(ret[i].events & EPOLLOUT))) {
+                    	    // An error has occured on this fd, or the socket is not ready for reading (why were we notified then?).
+                    	    fprintf(stderr, "epoll error\n");
+                    	    close(fd);
+							if(um[fd]){
+								for(vector<T*>::iterator iter=um[fd]->begin();iter!=um[fd]->end();\
+										iter++){
+									delete *iter;
+								}
+								um[fd].resize(0);
+                    		    int retval = epoll_ctl(epfd, EPOLL_CTL_DEL, cfd, &ret[i]);
+                    		    if (retval == -1) {
+                    		      perror("epoll_ctl");
+                    		      abort();
+                    		    }
+							}
+                        } else if (ret[i].events & EPOLLRDHUP) {
+                          // Stream socket peer closed connection, or shut down writing half of connection.
+                          // We still to handle disconnection when read()/recv() return 0 or -1 just to be sure.
+                          printf("Closed connection on descriptor vis EPOLLRDHUP %d\n", tval->fd);
+
+                          // Closing the descriptor will make epoll remove it from the set of descriptors which are monitored.
+                          close(tval->fd);
+                          delete tval;
+                        }else{
+						
+					}
+					
+				}
+			}
             ~epoll(){
                 if(ret){
                     delete[] ret;
+					delete roll_buf;
                     ret=NULL;
+					roll_buf=NULL;
                 }
             }
         private:
