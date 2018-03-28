@@ -120,7 +120,7 @@ int read_data::write(){
         return -1;
      }else{
         pos+=count;
-        if(pos-16==data.legnth){
+        if(pos-16==data.length){
             return pos;
         }else{
             return 0;

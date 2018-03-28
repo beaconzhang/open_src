@@ -13,7 +13,7 @@ namespace xzhang_epoll{
         int efd;
         int maxevent;
         struct epoll_event* ret;
-        C* roll_buf;
+        C* in_roll_buf;
 		C* out_roll_buf;
 		unorder_map<int,vector<T*> >um;
 
@@ -21,7 +21,7 @@ namespace xzhang_epoll{
             epoll(C* out_roll_buf=NULL,int maxevent=1024):out_roll_buf(out_roll_buf){
                 efd=epoll_create1(O_CLOEXEC);
                 ret=new struct epoll_event[maxevent];
-				roll_buf=new C();
+				in_roll_buf=new C();
             }
             int add(int fd,struct epoll_event* pe ){
                 return epoll_ctl(efd, EPOLL_CTL_ADD, fd, pe);
@@ -105,9 +105,22 @@ namespace xzhang_epoll{
                             }
                         }
                    }
-                   roll_buf->push_back(vec);
+                   in_roll_buf->push_back(vec);
                 }
             }
+			void free_vec(fd){
+				if(um[fd]){
+					for(vector<T*>::iterator iter=um[fd]->begin();iter!=um[fd]->end();\
+							iter++){
+						delete *iter;
+					}
+					um[fd].resize(0);
+                    int retval = epoll_ctl(epfd, EPOLL_CTL_DEL, cfd, &ret[i]);
+                    if (retval == -1) {
+						perror("epoll_ctl");
+                    }
+				}
+			}
 			void write(){
 				vector<T*> vec;
 				while(1){
@@ -134,31 +147,67 @@ namespace xzhang_epoll{
 					}
 					for(int i=0;i<n;i++){
 						int fd=ret[i].data.fd;
-                        if ((ret[i].events & EPOLLERR) || (ret[i].events & EPOLLHUP) || (!(ret[i].events & EPOLLOUT))) {
+                        if ((ret[i].events & EPOLLERR) || (ret[i].events & EPOLLHUPi || (!(ret[i].events & EPOLLOUT))) {
                     	    // An error has occured on this fd, or the socket is not ready for reading (why were we notified then?).
                     	    fprintf(stderr, "epoll error\n");
                     	    close(fd);
-							if(um[fd]){
-								for(vector<T*>::iterator iter=um[fd]->begin();iter!=um[fd]->end();\
-										iter++){
-									delete *iter;
-								}
-								um[fd].resize(0);
-                    		    int retval = epoll_ctl(epfd, EPOLL_CTL_DEL, cfd, &ret[i]);
-                    		    if (retval == -1) {
-                    		      perror("epoll_ctl");
-                    		      abort();
-                    		    }
+							free_vec(fd);
+                        } else{
+							int num=um[fd].size()*2;
+							if(um[fd][0]->get_pos()>=16){
+								num--;
+							}	
+							struct iovec* iov=new struct iovec[num];
+							int start=0;
+							int iter=0;
+							xzhang_socket::tlv* ptlv=um[fd][0]->get_data();
+							if(um[fd][0]->get_pos()>=16){
+								iov[start].iov_base=ptlv->buf+pos-16;
+								iov[start++].iov_len=ptlv->length-(pos-16);
+								iter++;
 							}
-                        } else if (ret[i].events & EPOLLRDHUP) {
-                          // Stream socket peer closed connection, or shut down writing half of connection.
-                          // We still to handle disconnection when read()/recv() return 0 or -1 just to be sure.
-                          printf("Closed connection on descriptor vis EPOLLRDHUP %d\n", tval->fd);
-
-                          // Closing the descriptor will make epoll remove it from the set of descriptors which are monitored.
-                          close(tval->fd);
-                          delete tval;
-                        }else{
+							for(;iter<um[fd].szie();iter++){
+								ptlv=um[fd][iter]->get_data();
+								char* head=um[fd][iter]->get_head();
+								pos=um[fd][iter]->get_pos();
+								iov[start].iov_base=head+pos;
+								iov[start++].iov_length=16-pos;
+								iov[start].iov_base=ptlv->buf;
+								iov[start++].iov_len=ptlv->length;
+							}
+							count=writev(fd,iov,start);
+							delete iov;
+    						if(count==-1){
+        						if (!(errno == EAGAIN || errno == EWOULDBLOCK)) {
+									free_vec(fd);
+        						}else{
+									continue;
+        						}
+     						}else if(count==0){
+								free_vec(fd);
+     						}else{
+								iter=0;
+								while(iter<um[fd].size()){
+									ptlv=um[fd][iter]->get_data();
+									pos=um[fd][iter]->get_pos();
+									if(pos+count>=16+tlv->length){
+										count-=16+tlv->length-pos;
+										delete um[fd][iter];
+										iter++;
+									}else{
+										um[fd][iter]->set_pos(count+pos);
+										break;
+									}
+								}
+								um[fd]->erase(um[fd]->begin(),um[fd]->begin()+iter);
+								if(um[fd]->size()==0){
+                   					int retval = epoll_ctl(epfd, EPOLL_CTL_DEL, fd, &ret[i]);
+                   					if (retval == -1) {
+				   						perror("epoll_ctl");
+                   					}
+								}
+    						}
+                        }
 						
 					}
 					
@@ -167,9 +216,10 @@ namespace xzhang_epoll{
             ~epoll(){
                 if(ret){
                     delete[] ret;
-					delete roll_buf;
+					//delete roll_buf;
                     ret=NULL;
-					roll_buf=NULL;
+					in_roll_buf=NULL;
+					out_roll_buf=NULL;
                 }
             }
         private:

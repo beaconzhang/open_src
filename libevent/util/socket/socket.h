@@ -42,6 +42,18 @@ namespace xzhang_socket{
         }
         int read();
         int write();
+		int get_pos(){
+			return pos;
+		}
+		void set_pos(int inpos){
+			pos=inpos;
+		}
+		tlv* get_data(){
+			return &data;
+		}
+		char* get_head(){
+			return head;
+		}
         bool is_listen(){
             return type;
         }
