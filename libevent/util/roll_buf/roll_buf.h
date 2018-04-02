@@ -20,6 +20,20 @@ class roll_buf {
 
 public:
   // Events_size must be a power of two.
+  
+  roll_buf() :
+    capacity(8096),
+    produce_pos(0),
+    consume_pos(0),
+	in(0),
+  	out(0),
+    mutex(PTHREAD_MUTEX_INITIALIZER),
+    produce_cond(PTHREAD_COND_INITIALIZER),
+    consume_cond(PTHREAD_COND_INITIALIZER){
+       element=new T[capacity]; 
+	   timeout.tv_sec=0;
+	   timeout.tv_nsec=1000000;
+    }
   explicit roll_buf(uint64_t capacity) :
     capacity(capacity),
     produce_pos(0),
@@ -40,7 +54,7 @@ public:
     return capacity;
   }
   inline uint64_t get_element_size()const{
-	   cerr<<"in:"<<in<<" out:"<<out<<"\n";
+	   //cerr<<"in:"<<in<<" out:"<<out<<"\n";
        return produce_pos-consume_pos;
   }
     void push_back(const T& tval){
@@ -105,6 +119,23 @@ public:
         pthread_cond_signal(&consume_cond);
         pthread_mutex_unlock(&mutex);
     }
+	void pop_front_noblock(vector<T>&vec,uint32_t num=1){
+        if(num<=0){
+            return;
+        }
+        vec.clear();
+        pthread_mutex_lock(&mutex);
+        for(;num>0&&consume_pos<produce_pos;){
+            vec.push_back(element[(consume_pos++)&(capacity-1)]);
+            num--;
+			out++;
+        }
+        if(consume_pos>=capacity){
+            consume_pos-=capacity;
+            produce_pos-=capacity;
+        }
+        pthread_mutex_unlock(&mutex);
+	}
 
   ~roll_buf() {
     printf("Deleted Ring Buffer\n");

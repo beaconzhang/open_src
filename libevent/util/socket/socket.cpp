@@ -1,7 +1,6 @@
 #include "socket.h"
 
 using xzhang_socket::read_data;
-#define SOMAXCONN 1024
 
 int read_data::read(){
     if(type){
@@ -25,7 +24,7 @@ int read_data::read(){
         }
 
         // Print host and service info.
-        retval = getnameinfo(&in_addr, in_len,
+        int retval = getnameinfo(&in_addr, in_len,
                              hbuf, sizeof hbuf,
                              sbuf, sizeof sbuf,
                              NI_NUMERICHOST | NI_NUMERICSERV);
@@ -36,7 +35,7 @@ int read_data::read(){
     }else{
         //0表示继续读取，-1表示对方关闭，-2表示套接字出错，>0表示读取完毕
         if(pos<16){
-            int count=read(fd,head+pos,16-pos);
+            int count=::read(fd,head+pos,16-pos);
             if(count==-1){
                 if (!(errno == EAGAIN || errno == EWOULDBLOCK)) {
                     return -2;
@@ -71,7 +70,7 @@ int read_data::read(){
     return 0;
 }
 int read_data::_read(){
-    int count=read(fd,data.buf+pos-16,data.length-(pos-16));
+    int count=::read(fd,data.buf+pos-16,data.length-(pos-16));
     if(count==-1){
         if (!(errno == EAGAIN || errno == EWOULDBLOCK)) {
             return -2;
@@ -82,7 +81,7 @@ int read_data::_read(){
         return -1;
      }else{
         pos+=count;
-        if(pos-16==data.legnth){
+        if(pos-16==data.length){
             return pos;
         }else{
             return 0;
@@ -108,7 +107,7 @@ int read_data::write(){
         iov[1].iov_len=data.length;
         count=writev(fd,iov,2);
     }else{
-        count=write(fd,data.buf+pos-16,data.length-(pos-16));
+        count=::write(fd,data.buf+pos-16,data.length-(pos-16));
     }
     if(count==-1){
         if (!(errno == EAGAIN || errno == EWOULDBLOCK)) {
@@ -135,7 +134,7 @@ xzhang_socket::socket::socket(string hostinfo){
         return;
     }
     host=hostinfo.substr(0,pos);
-    port=hostinfo.substr(pos+1);
+    service=hostinfo.substr(pos+1);
 }
 int xzhang_socket::socket::set_noblock(){
   int flags, s;
@@ -169,10 +168,14 @@ int xzhang_socket::socket::create_server(){
   }
 
   for (rp = result; rp != NULL; rp = rp->ai_next) {
-    fd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+    fd = ::socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
     if (fd == -1)
-      continue;
-    if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &(int){ 1 }, sizeof(int)) < 0){
+    	continue;
+	int tmp_value=1;
+    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &tmp_value, sizeof(int)) < 0){
+            perror("setsockopt(SO_REUSEADDR) failed");
+    }
+    if (setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &tmp_value, sizeof(int)) < 0){
             perror("setsockopt(SO_REUSEADDR) failed");
     }
     retval = bind(fd, rp->ai_addr, rp->ai_addrlen);
@@ -181,7 +184,7 @@ int xzhang_socket::socket::create_server(){
       break;
     }
 
-    close(fd);
+    ::close(fd);
   }
   if (rp == NULL) {
     fprintf(stderr, "Could not bind\n");
@@ -189,7 +192,7 @@ int xzhang_socket::socket::create_server(){
   }
   freeaddrinfo(result);
   set_noblock();
-  retval = listen(fd, SOMAXCONN);
+  retval = listen(fd, 1024);
   if (retval == -1) {
     perror ("listen");
     abort ();
@@ -197,7 +200,7 @@ int xzhang_socket::socket::create_server(){
   return fd;
 }
 
-int xzhang_socket::socket create_client(){
+int xzhang_socket::socket::create_client(){
     int return_value;
     struct addrinfo hint, *result, *result_check;
 
@@ -220,7 +223,7 @@ int xzhang_socket::socket create_client(){
     // As described in "The Linux Programming Interface", Michael Kerrisk 2010, chapter 59.11 (p. 1220ff)
     for ( result_check = result; result_check != NULL; result_check = result_check->ai_next ) // go through the linked list of struct addrinfo elements
     {
-	    fd = socket(result_check->ai_family, result_check->ai_socktype | flags, result_check->ai_protocol);
+	    fd = ::socket(result_check->ai_family, result_check->ai_socktype , result_check->ai_protocol);
 
 	    if ( fd < 0 ) // Error!!!
 	        continue;
@@ -228,7 +231,7 @@ int xzhang_socket::socket create_client(){
 	    if ( -1 != connect(fd,result_check->ai_addr,result_check->ai_addrlen)) // connected without error
 	        break;
 
-	    close(fd);
+	    ::close(fd);
     }
 
     // We do now have a working socket STREAM connection to our target
@@ -237,16 +240,17 @@ int xzhang_socket::socket create_client(){
     {
 	    perror("create_inet_stream_socket: Could not connect to any address!\n");
         int errno_saved = errno;
-        close(fd);
+        ::close(fd);
         errno = errno_saved;
     	return -1;
     }
     // Yes :)
     freeaddrinfo(result);
+	set_keepalive();
     return fd;
 }
 
-int xzhang_socket::socket::get_hostinfo_str(&value){
+int xzhang_socket::socket::get_hostinfo_str(){
     char hbuf[NI_MAXHOST], sbuf[NI_MAXSERV];
     struct sockaddr_in addr;
     socklen_t addr_size = sizeof(struct sockaddr_in);
@@ -255,7 +259,7 @@ int xzhang_socket::socket::get_hostinfo_str(&value){
         perror(gai_strerror(res));
         return res;
     }
-    res = getnameinfo(&addr, addr_size, hbuf, sizeof hbuf,sbuf, sizeof sbuf,NI_NUMERICHOST | NI_NUMERICSERV);
+    res = getnameinfo((const sockaddr*)&addr, addr_size, hbuf, sizeof hbuf,sbuf, sizeof sbuf,NI_NUMERICHOST | NI_NUMERICSERV);
     if (res == 0) {
       printf("Accepted connection on descriptor %d (host=%s, port=%s)\n", fd, hbuf, sbuf);
     }
@@ -264,22 +268,22 @@ int xzhang_socket::socket::get_hostinfo_str(&value){
 int xzhang_socket::socket::set_keepalive(){
     int optval = 1;
     int ret=0;
-    if((ret=setsockopt(sockfd, SOL_SOCKET, SO_KEEPALIVE, &optval, sizeof(optval)))){
+    if((ret=setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &optval, sizeof(optval)))){
         perror(gai_strerror(ret));
         return ret;
     }
     optval=3;
-    if((ret=setsockopt(sockfd, IPPROTO_TCP, TCP_KEEPCNT, &optval, sizeof optvalt))){
+    if((ret=setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &optval, sizeof optval))){
         perror(gai_strerror(ret));
         return ret;
     }
     optval=10;
-    if((ret=setsockopt(sockfd, IPPROTO_TCP, TCP_KEEPIDLE, &optval, sizeof optvalt))){
+    if((ret=setsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, &optval, sizeof optval))){
         perror(gai_strerror(ret));
         return ret;
     }
     optval=3;
-    if((ret=setsockopt(sockfd, IPPROTO_TCP, TCP_KEEPINTVL, &optval, sizeof optvalt))){
+    if((ret=setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &optval, sizeof optval))){
         perror(gai_strerror(ret));
         return ret;
     }
@@ -307,7 +311,7 @@ int xzhang_socket::socket::close_rd(){
     return shutdown(fd,SHUT_RD);
 }
 
-int xzhang_socket::socket::close_rd(){
+int xzhang_socket::socket::close_wr(){
     return shutdown(fd,SHUT_WR);
 }
 
@@ -315,7 +319,7 @@ int xzhang_socket::socket::close(){
     if(fd<=0){
         return 0;
     }
-    int ret=close(fd);
+    int ret=::close(fd);
     fd=-1;
     return ret;
 }

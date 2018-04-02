@@ -24,8 +24,39 @@
 #include <net/if.h>
 #include <netinet/in.h>
 #include <fcntl.h>
+#include <sys/uio.h>
+#include <string>
+#include <netinet/tcp.h>
+using std::string;
 
 namespace xzhang_socket{
+    class tlv{
+        public:
+        int type;
+        int length;
+        char*buf;
+        tlv():type(-1),length(-1),buf(NULL){}
+        tlv(int type,int length):type(type),length(length){
+            buf=new char[length+1];
+            buf[length]='\0';
+        }
+        void init(int tp,int len){
+            type=tp;
+            length=len;
+            buf=new char[length+1];
+            buf[length]='\0';
+        }
+        ~tlv(){
+            if(buf){
+                delete[] buf;
+                buf=NULL;
+                type=length=-1;
+            }
+        }
+        private:
+            tlv(const tlv&){}
+            tlv& operator =(const tlv&){}
+    };
     class read_data{
         public:
         bool type;//true lister or false connector;
@@ -38,7 +69,7 @@ namespace xzhang_socket{
             fd=-1;
         }
         read_data(bool type,int fd,int pos=-1):type(type),fd(fd),pos(pos){
-                meset(head,sizeof(head),0);
+                memset(head,sizeof(head),0);
         }
         int read();
         int write();
@@ -63,33 +94,6 @@ namespace xzhang_socket{
         private:
         int _read();
     };
-    class tlv{
-        public:
-        int type;
-        int length;
-        char*buf;
-        tlv():type(-1),length(-1),buff(NULL){}
-        tlv(int type,int length):type(type),length(length){
-            buf=new char[length+1];
-            buf[length]='\0';
-        }
-        void init(int tp,int len){
-            type=tp;
-            length=len;
-            buf=new char[length+1];
-            buf[length]='\0';
-        }
-        ~tlv(){
-            if(buf){
-                delete[] buf;
-                buf=NULL;
-                type=length=-1;
-            }
-        }
-        private:
-            tlv(const tlv&){}
-            tlv& operator =(const tlv&){}
-    };
     class socket{
         int fd;
         string host;
@@ -97,7 +101,10 @@ namespace xzhang_socket{
         public:
             socket(int fd=-1):fd(fd){}
             socket(string hostinf);//:分割
-            void get_hostinfo_str(string&value);
+            int get_hostinfo_str();
+			void reset(int in_fd=-1){
+				fd=in_fd;
+			}
             int create_server();
             int create_client();
             int set_noblock();
@@ -106,9 +113,15 @@ namespace xzhang_socket{
             int close_rd();
             int close_wr();
             int close();
+			int get_socket(){
+				return fd;
+			}
+			int get_fd(){
+				return fd;
+			}
             ~socket(){
                 if(fd>0){
-                    close(fd);
+                    ::close(fd);
                 }
             }
     };
