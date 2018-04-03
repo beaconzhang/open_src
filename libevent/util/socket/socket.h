@@ -27,6 +27,9 @@
 #include <sys/uio.h>
 #include <string>
 #include <netinet/tcp.h>
+#include <iostream>
+#include <unistd.h>
+using std::cout;
 using std::string;
 
 namespace xzhang_socket{
@@ -35,11 +38,33 @@ namespace xzhang_socket{
         int type;
         int length;
         char*buf;
-        tlv():type(-1),length(-1),buf(NULL){}
+        tlv():type(0),length(0),buf(NULL){}
         tlv(int type,int length):type(type),length(length){
             buf=new char[length+1];
             buf[length]='\0';
         }
+		void produce_data(int _length,int _type=0){
+			type=_type;
+			length=_length;
+			buf=new char[length+1];
+			buf[length]='\0';
+			for(int i=0;i<length;i++){
+				switch(rand()%3){
+					case 0:
+						buf[i]='0'+rand()%10;
+						break;
+					case 1:
+						buf[i]='a'+rand()%26;
+						break;
+					case 2:
+						buf[i]='A'+rand()%26;
+						break;
+					default:
+						perror("produce_data error\n");
+						break;
+				}
+			}
+		}
         void init(int tp,int len){
             type=tp;
             length=len;
@@ -65,12 +90,15 @@ namespace xzhang_socket{
         char head[17];//head
         tlv data;
         read_data():type(false),pos(0){
-            memset(head,sizeof(head),0);
+            memset(head,0,sizeof(head));
             fd=-1;
         }
-        read_data(bool type,int fd,int pos=-1):type(type),fd(fd),pos(pos){
-                memset(head,sizeof(head),0);
+        read_data(bool type,int fd,int pos=0):type(type),fd(fd),pos(pos){
+                memset(head,0,sizeof(head));
         }
+		bool operator ==(const read_data&rd){
+			return data.type==rd.data.type&&data.length==rd.data.length&&!memcpy(data.buf,rd.data.buf,data.length);
+		}
         int read();
         int write();
 		int get_pos(){
@@ -90,6 +118,15 @@ namespace xzhang_socket{
         }
 		int get_sockfd(){
 			return fd;
+		}
+		void produce_data(int _length,int _type=0){
+			data.produce_data(_length,_type);
+			snprintf(head,9,"%08x",data.type);
+			snprintf(head+8,9,"%08x",data.length);
+		}
+		void print(){
+			cout<<"is_listen:"<<type<<" fd:"<<fd<<" pos:"<<pos<<" type:"<<data.type<<" length:"<<\
+				data.length<<" head:"<<head<<" data:"<<data.buf<<"\n";
 		}
         private:
         int _read();

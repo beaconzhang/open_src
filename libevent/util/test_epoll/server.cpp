@@ -60,21 +60,26 @@ void* process_work(void*arg){
 		for(int i=0;i<vec_write.size();i++){
 			vec_write[i].resize(0);
 		}
-		for(int i=0;i<pwi[i].read_num_thread;i++){
+		for(int i=0;i<pwi->read_num_thread;i++){
 			pwi->read_rool_buf[i].pop_front_noblock(vec,pwi->read_rool_buf[i].get_element_size());
 			for(uint32_t j=0;j<vec.size();j++){
 				int fd=vec[j]->fd;
+				vec[j]->set_pos(0);
+				//printf("process: ");
+				//vec[j]->print();
 				vec_write[fd%pwi->write_num_thread].push_back(vec[j]);
 			}
+			vec.clear();
 		}
 		for(uint32_t i=0;i<vec_write.size();i++){
-			pwi->write_rool_buf->push_back(vec_write[i]);
+			pwi->write_rool_buf[i].push_back(vec_write[i]);
 			if(vec_write[i].size()){
 				flag=true;
 			}
 		}
 		if(!flag){
-			usleep(5000);
+			usleep(500000);
+			flag=false;
 		}
 	}
 	return NULL;
@@ -87,7 +92,7 @@ void* recv_work(void*arg){
 		rwi->ep=new xzhang_epoll::epoll<xzhang_socket::read_data,roll_buf<xzhang_socket::read_data*> >(\
 				rwi->buf);
 	}
-	cout<<"lister fd:"<<listfd.get_fd()<<"\n";
+	//cout<<"lister fd:"<<listfd.get_fd()<<"\n";
 	xzhang_socket::read_data* list_read_data=new xzhang_socket::read_data(true,\
 			listfd.get_fd(),0);
 	struct epoll_event list_epoll_event;
@@ -139,7 +144,15 @@ int main(){
 		pthread_detach(pid);
 	}
 	while(1){
-		sleep(60);
+		sleep(20);
+		cout<<"read roll_buf:";
+		for(int i=0;i<num_read;i++){
+			read_roll_buf[i].print();
+		}
+		cout<<"write roll_buf:";
+		for(int i=0;i<num_write;i++){
+			write_roll_buf[i].print();
+		}
 		cout<<"statistic info\n";
 	}
 

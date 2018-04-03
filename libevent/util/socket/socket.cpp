@@ -54,6 +54,7 @@ int read_data::read(){
                     sscanf(head,"%x",&type);
                     head[8]=temp;
                     sscanf(head+8,"%x",&len);
+					//printf("head=%s type:%d len=%d\n",head,type,len);
                     data.init(type,len);
                     int ret=-1;
                     if(len==0||(ret=_read())>0){
@@ -65,7 +66,14 @@ int read_data::read(){
                     return 0;
                 }
             }
-        }
+        }else{
+			int ret=_read();
+			if(ret>0){
+				return pos;
+			}else{
+				return ret;
+			}
+		}
     }
     return 0;
 }
@@ -247,6 +255,7 @@ int xzhang_socket::socket::create_client(){
     // Yes :)
     freeaddrinfo(result);
 	set_keepalive();
+	set_noblock();
     return fd;
 }
 

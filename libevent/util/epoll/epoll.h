@@ -41,12 +41,11 @@ namespace xzhang_epoll{
                 return epoll_ctl(efd,EPOLL_CTL_MOD,fd,pe);
             }
             void start(){
-				cout<<"start:"<<efd<<"\n";
                 while(1){
                    int n=epoll_wait(efd,ret,maxevent,-1);//1s timeout
                    vector<T*>vec;
                    for(int i=0;i<n;i++){
-					   cout<<"epoll start:"<<i<<"\n";
+					   //cout<<"epoll start:"<<i<<"\n";
                         T* tval=(T*)(ret[i].data.ptr);
                         if ((ret[i].events & EPOLLERR) || (ret[i].events & EPOLLHUP) || (!(ret[i].events & EPOLLIN))) {
                           // An error has occured on this fd, or the socket is not ready for reading (why were we notified then?).
@@ -114,6 +113,7 @@ namespace xzhang_epoll{
 										num_client--;
                                         break;
                                     }else{
+										//tval->print();
                                         vec.push_back(tval);
 										count++;
                                         tval=new T(false,tval->fd,0);
@@ -168,7 +168,8 @@ namespace xzhang_epoll{
                             int retval = epoll_ctl(efd, EPOLL_CTL_ADD, fd, &ee);
                             if (retval == -1) {
                               perror("epoll_ctl");
-                              abort();
+							  delete *iter;
+							  continue;
                             }
 						}
 						um[fd]->push_back(*iter);

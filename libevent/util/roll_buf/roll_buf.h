@@ -57,6 +57,12 @@ public:
 	   //cerr<<"in:"<<in<<" out:"<<out<<"\n";
        return produce_pos-consume_pos;
   }
+  	void print(){
+		printf("roll_buf:size=%lu\n",get_element_size());
+		for(int i=consume_pos;i<produce_pos;i++){
+			element[(i)&(capacity-1)]->print();
+		}
+	}
     void push_back(const T& tval){
         pthread_mutex_lock(&mutex);
         while(produce_pos-consume_pos>=capacity){
