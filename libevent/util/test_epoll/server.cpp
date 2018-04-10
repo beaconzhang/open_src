@@ -96,7 +96,7 @@ void* recv_work(void*arg){
 	xzhang_socket::read_data* list_read_data=new xzhang_socket::read_data(true,\
 			listfd.get_fd(),0);
 	struct epoll_event list_epoll_event;
-	list_epoll_event.events = EPOLLIN | EPOLLRDHUP | EPOLLET;
+	list_epoll_event.events = EPOLLIN | EPOLLRDHUP ;
 	list_epoll_event.data.ptr=list_read_data;
 	rwi->ep->add(listfd.get_fd(),&list_epoll_event);
 	while(1){

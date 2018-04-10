@@ -46,6 +46,9 @@ namespace xzhang_socket{
 		void produce_data(int _length,int _type=0){
 			type=_type;
 			length=_length;
+			if(buf){
+				delete[] buf;
+			}
 			buf=new char[length+1];
 			buf[length]='\0';
 			for(int i=0;i<length;i++){
@@ -68,6 +71,9 @@ namespace xzhang_socket{
         void init(int tp,int len){
             type=tp;
             length=len;
+			if(buf){
+				delete[] buf;
+			}
             buf=new char[length+1];
             buf[length]='\0';
         }
@@ -75,7 +81,7 @@ namespace xzhang_socket{
             if(buf){
                 delete[] buf;
                 buf=NULL;
-                type=length=-1;
+                type=length=0;
             }
         }
         private:
@@ -97,7 +103,7 @@ namespace xzhang_socket{
                 memset(head,0,sizeof(head));
         }
 		bool operator ==(const read_data&rd){
-			return data.type==rd.data.type&&data.length==rd.data.length&&!memcpy(data.buf,rd.data.buf,data.length);
+			return data.type==rd.data.type&&data.length==rd.data.length&&!memcmp(data.buf,rd.data.buf,data.length);
 		}
         int read();
         int write();
@@ -116,6 +122,9 @@ namespace xzhang_socket{
         bool is_listen(){
             return type;
         }
+		int get_type(){
+			return data.type;
+		}
 		int get_sockfd(){
 			return fd;
 		}
@@ -130,6 +139,8 @@ namespace xzhang_socket{
 		}
         private:
         int _read();
+		read_data& operator =(const read_data){}
+		read_data(const read_data&){}
     };
     class socket{
         int fd;

@@ -53,15 +53,6 @@ namespace xzhang_epoll{
                           close(tval->fd);
                           delete tval;
 						  num_client--;
-                        } else if (ret[i].events & EPOLLRDHUP) {
-                          // Stream socket peer closed connection, or shut down writing half of connection.
-                          // We still to handle disconnection when read()/recv() return 0 or -1 just to be sure.
-                          printf("Closed connection on descriptor vis EPOLLRDHUP %d\n", tval->fd);
-
-                          // Closing the descriptor will make epoll remove it from the set of descriptors which are monitored.
-                          close(tval->fd);
-						  num_client--;
-                          delete tval;
                         }else{
                             if(tval->is_listen()){
                                 //是listen 描述符
@@ -71,7 +62,7 @@ namespace xzhang_epoll{
                                         break;
                                     }else if(cfd<=0){
                                         cerr<<"listen socket error\n";
-                                        abort();
+										exit(-1);
                                     }else{
                                         //构造对象
                                         struct epoll_event ee;
@@ -79,12 +70,12 @@ namespace xzhang_epoll{
 										accept_sk.set_keepalive();
 										accept_sk.reset();
                                         T* ptr=new T(false,cfd,0);
-                                        ee.events = EPOLLIN | EPOLLRDHUP | EPOLLET;
+                                        ee.events = EPOLLIN | EPOLLRDHUP |EPOLLERR;
                                         ee.data.ptr=ptr;
                                         int retval = epoll_ctl(efd, EPOLL_CTL_ADD, cfd, &ee);
                                         if (retval == -1) {
                                           perror("epoll_ctl");
-                                          abort();
+										  exit(-1);
                                         }
 										num_client++;
                                     }
@@ -99,11 +90,11 @@ namespace xzhang_epoll{
                                             //modify epoll
                                             struct epoll_event ee;
                                             ee.data.ptr=tval;
-                                            ee.events=EPOLLIN | EPOLLRDHUP | EPOLLET;
+                                            ee.events=EPOLLIN | EPOLLRDHUP |EPOLLERR ;
                                             int retval = epoll_ctl(efd, EPOLL_CTL_MOD, tval->fd, &ee);
                                             if (retval == -1) {
                                                 perror("epoll_ctl");
-                                                abort();
+												exit(-1);
                                              }
                                         }
                                         break;
@@ -116,7 +107,9 @@ namespace xzhang_epoll{
 										//tval->print();
                                         vec.push_back(tval);
 										count++;
-                                        tval=new T(false,tval->fd,0);
+										int fd=tval->fd;
+                                        tval=new T(false,fd,0);
+										//fprintf(stderr,"malloc addr from: %p ~ %p \n",tval,tval+1);
 										is_not_exist=true;
                                     }
                                 }
@@ -138,7 +131,7 @@ namespace xzhang_epoll{
 					um[fd]->resize(0);
                     int retval = epoll_ctl(efd, EPOLL_CTL_DEL, fd, NULL);
                     if (retval == -1) {
-						perror("epoll_ctl");
+						perror("error free epoll_ctl\n");
                     }
 				}
 			}
@@ -163,11 +156,11 @@ namespace xzhang_epoll{
 							}
 							//添加fd到efd中
 							struct epoll_event ee;
-							ee.events= EPOLLOUT | EPOLLRDHUP | EPOLLET;
+							ee.events= EPOLLOUT | EPOLLRDHUP|EPOLLERR ;
 							ee.data.fd=fd;
                             int retval = epoll_ctl(efd, EPOLL_CTL_ADD, fd, &ee);
                             if (retval == -1) {
-                              perror("epoll_ctl");
+                              perror("error write add epoll_ctl\n");
 							  delete *iter;
 							  continue;
                             }
@@ -178,7 +171,7 @@ namespace xzhang_epoll{
 						int fd=ret[i].data.fd;
                         if ((ret[i].events & EPOLLERR) || (ret[i].events & EPOLLHUP) || (!(ret[i].events & EPOLLOUT))) {
                     	    // An error has occured on this fd, or the socket is not ready for reading (why were we notified then?).
-                    	    fprintf(stderr, "epoll error\n");
+                    	    fprintf(stderr, "error write fd epoll error\n");
                     	    close(fd);
 							free_vec(fd);
                         } else{
@@ -206,7 +199,7 @@ namespace xzhang_epoll{
 								iov[start++].iov_len=ptlv->length;
 							}
 							count=writev(fd,iov,start);
-							delete iov;
+							delete[] iov;
     						if(count==-1){
         						if (!(errno == EAGAIN || errno == EWOULDBLOCK)) {
 									free_vec(fd);
@@ -234,7 +227,7 @@ namespace xzhang_epoll{
                    					int retval = epoll_ctl(efd, EPOLL_CTL_DEL, fd, &ret[i]);
 									num_client--;
                    					if (retval == -1) {
-				   						perror("epoll_ctl");
+				   						perror("error delete epoll_ctl\n");
                    					}
 								}
     						}

@@ -48,12 +48,12 @@ int read_data::read(){
                 pos+=count;
                 if(pos==16){
                     char temp=head[8];
-                    head[8]='\0';
+                    //head[8]='\0';
                     int type=-1;
                     int len=-1;
-                    sscanf(head,"%x",&type);
-                    head[8]=temp;
-                    sscanf(head+8,"%x",&len);
+                    sscanf(head,"%8x",&type);
+                    //head[8]=temp;
+                    sscanf(head+8,"%8x",&len);
 					//printf("head=%s type:%d len=%d\n",head,type,len);
                     data.init(type,len);
                     int ret=-1;
