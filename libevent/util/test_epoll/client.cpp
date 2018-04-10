@@ -84,7 +84,11 @@ void* write_work(void*arg){
 	int efd=epoll_create1(O_CLOEXEC);
 	struct epoll_event* ret=new struct epoll_event[num_fd];
 	struct epoll_event ee;
+<<<<<<< HEAD
 	ee.events=EPOLLOUT|EPOLLRDHUP;
+=======
+	ee.events=EPOLLOUT|EPOLLRDHUP|EPOLLET;
+>>>>>>> 6afa6a2b3e4c7f6e5052960673798a8a6d0c20da
 	for(int i=0;i<num_fd;i++){
 		ee.data.ptr=wi+i;
 		if(epoll_ctl(efd,EPOLL_CTL_ADD,wi[i].fd,&ee)){
@@ -93,6 +97,7 @@ void* write_work(void*arg){
 		}
 	}
 	while(1){
+<<<<<<< HEAD
 		int n=epoll_wait(efd,ret,num_fd,-1);
 		for(int i=0;i<1;i++){
 			work_iterm* wi_tmp=(work_iterm*)ret[i].data.ptr;
@@ -105,11 +110,30 @@ void* write_work(void*arg){
 				if(wi_tmp->_wi->write()){
 					um[wi_tmp->_wi->get_type()]=wi_tmp->_wi;
 					wi_tmp->reset(true,++id);
+=======
+		//int n=epoll_wait(efd,ret,num_fd,-1);
+		work_iterm* wi_tmp=wi;
+		for(int i=0;i<1;i++){
+		//	work_iterm* wi_tmp=(work_iterm*)ret[i].data.ptr;
+		//	int fd=wi_tmp->fd;
+		//	if((ret[i].events & EPOLLERR) || (ret[i].events & EPOLLHUP) ||\
+		//			(!(ret[i].events & EPOLLOUT))){
+		//		cerr<<"fd:"<<fd<<" error\n";
+		//		continue;
+		//	}else{
+				if(wi_tmp->_wi->write()){
+					um[wi_tmp->_wi->get_type()]=wi_tmp->_wi;
+					wi_tmp->reset(true,id++);
+>>>>>>> 6afa6a2b3e4c7f6e5052960673798a8a6d0c20da
 					cerr<<"write data:";
 					wi_tmp->_wi->arr->print();
 					wi_tmp->count++;
 				}
+<<<<<<< HEAD
 			}
+=======
+		//	}
+>>>>>>> 6afa6a2b3e4c7f6e5052960673798a8a6d0c20da
 		}
 		usleep(us_sleep);
 	}
@@ -120,7 +144,11 @@ void* read_work(void*arg){
 	int efd=epoll_create1(O_CLOEXEC);
 	struct epoll_event* ret=new struct epoll_event[num_fd];
 	struct epoll_event ee;
+<<<<<<< HEAD
 	ee.events=EPOLLIN|EPOLLRDHUP;
+=======
+	ee.events=EPOLLIN|EPOLLRDHUP|EPOLLET;
+>>>>>>> 6afa6a2b3e4c7f6e5052960673798a8a6d0c20da
 	for(int i=0;i<num_fd;i++){
 		ee.data.ptr=wi+i;
 		if(epoll_ctl(efd,EPOLL_CTL_ADD,wi[i].fd,&ee)){
@@ -155,6 +183,10 @@ void* read_work(void*arg){
 						cerr<<"can't find key:"<<wi_tmp->_wi->get_type()<<"\n";
 					}
 					delete wi_tmp->_wi;
+<<<<<<< HEAD
+=======
+					wi_tmp->count++;
+>>>>>>> 6afa6a2b3e4c7f6e5052960673798a8a6d0c20da
 					wi_tmp->reset(false);
 				}
 			}
@@ -176,8 +208,12 @@ int main(){
 		write_wi[i].set_fd(listfd.get_fd());
 		listfd.reset();
 		read_wi[i].reset(false);
+<<<<<<< HEAD
 		write_wi[i].reset(true,++id);
 		//write_wi[i]._wi->arr->print();
+=======
+		write_wi[i].reset(true,id++);
+>>>>>>> 6afa6a2b3e4c7f6e5052960673798a8a6d0c20da
 	}
 	pthread_t pid;
 	pthread_create(&pid,NULL,read_work,read_wi);
