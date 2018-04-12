@@ -68,11 +68,17 @@ void* process_work(void*arg){
 				//printf("process: ");
 				//vec[j]->print();
 				vec_write[fd%pwi->write_num_thread].push_back(vec[j]);
+				//delete vec[j];
 			}
 			vec.clear();
 		}
+		continue;
 		for(uint32_t i=0;i<vec_write.size();i++){
 			pwi->write_rool_buf[i].push_back(vec_write[i]);
+			//for(uint32_t j=0;j<vec_write[i].size();j++){
+			//	delete vec_write[i][j];
+			//}
+			//continue;
 			if(vec_write[i].size()){
 				flag=true;
 			}
@@ -146,13 +152,13 @@ int main(){
 	while(1){
 		sleep(20);
 		cout<<"read roll_buf:";
-		for(int i=0;i<num_read;i++){
-			read_roll_buf[i].print();
-		}
-		cout<<"write roll_buf:";
-		for(int i=0;i<num_write;i++){
-			write_roll_buf[i].print();
-		}
+		//for(int i=0;i<num_read;i++){
+		//	read_roll_buf[i].print();
+		//}
+		//cout<<"write roll_buf:";
+		//for(int i=0;i<num_write;i++){
+		//	write_roll_buf[i].print();
+		//}
 		cout<<"statistic info\n";
 	}
 

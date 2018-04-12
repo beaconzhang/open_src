@@ -22,7 +22,7 @@ public:
   // Events_size must be a power of two.
   
   roll_buf() :
-    capacity(8096),
+    capacity(8192),
     produce_pos(0),
     consume_pos(0),
 	in(0),
@@ -74,6 +74,9 @@ public:
         pthread_mutex_unlock(&mutex);
     }
     void push_back(const vector<T>&vec){
+		if(vec.size()==0){
+			return;
+		}
         pthread_mutex_lock(&mutex);
         uint32_t start_pos=0;
         while(start_pos<vec.size()){

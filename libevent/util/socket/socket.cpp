@@ -1,4 +1,6 @@
 #include "socket.h"
+#include <iostream>
+using std::cerr;
 
 using xzhang_socket::read_data;
 

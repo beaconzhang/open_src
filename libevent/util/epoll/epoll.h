@@ -67,6 +67,7 @@ namespace xzhang_epoll{
                                         //构造对象
                                         struct epoll_event ee;
 										xzhang_socket::socket accept_sk(cfd);
+										accept_sk.set_noblock();
 										accept_sk.set_keepalive();
 										accept_sk.reset();
                                         T* ptr=new T(false,cfd,0);
@@ -105,9 +106,11 @@ namespace xzhang_epoll{
                                         break;
                                     }else{
 										//tval->print();
+										//tval->set_pos(0);
                                         vec.push_back(tval);
 										count++;
 										int fd=tval->fd;
+										//delete tval;
                                         tval=new T(false,fd,0);
 										//fprintf(stderr,"malloc addr from: %p ~ %p \n",tval,tval+1);
 										is_not_exist=true;
@@ -117,6 +120,12 @@ namespace xzhang_epoll{
                         }
                    }
                    in_roll_buf->push_back(vec);
+				   //vec.resize(0);
+				   //in_roll_buf->pop_front_noblock(vec);
+				   //for(int i=0;i<vec.size();i++){
+				   //		delete vec[i];
+				   //}
+				   //cerr<<"vec.size()="<<vec.size()<<"\n";
                 }
             }
 			void free_vec(int fd){
@@ -138,10 +147,19 @@ namespace xzhang_epoll{
 			void write(){
 				vector<T*> vec;
 				cout<<"write:"<<efd<<"\n";
+				uint64_t tmp_cnt=0;
 				while(1){
 					vec.clear();
 					int n=epoll_wait(efd,ret,maxevent,2000);
 					out_roll_buf->pop_front(vec,out_roll_buf->get_element_size());
+					if(vec.size()){
+						tmp_cnt+=vec.size();
+						cout<<"tmp_cnt="<<tmp_cnt<<"\n";
+					}
+					//for(int i=0;i<vec.size();i++){
+					//	delete vec[i];
+					//}
+					//continue;
 					if(!vec.size()){
 						usleep(5000);
 					}
