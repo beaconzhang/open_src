@@ -11,9 +11,9 @@
 #include <pthread.h>
 #include "../clock_time/clock_time.h"
 using namespace std;
-int us_sleep=1000;
-int start_len=1024,end_len=8096;
-int num_fd=10;
+int us_sleep=5000;
+int start_len=8000,end_len=102400;
+int num_fd=100;
 struct _work_iterm{
 	xzhang_socket::read_data* arr;
 	xzhang_libevent::clock_tm ct;
@@ -94,7 +94,7 @@ void* write_work(void*arg){
 	}
 	while(1){
 		int n=epoll_wait(efd,ret,num_fd,-1);
-		for(int i=0;i<1;i++){
+		for(int i=0;i<n;i++){
 			work_iterm* wi_tmp=(work_iterm*)ret[i].data.ptr;
 			int fd=wi_tmp->fd;
 			if((ret[i].events & EPOLLERR) || (ret[i].events & EPOLLHUP) ||\
@@ -123,11 +123,13 @@ void* read_work(void*arg){
 	ee.events=EPOLLIN|EPOLLRDHUP|EPOLLERR;
 	for(int i=0;i<num_fd;i++){
 		ee.data.ptr=wi+i;
+		cerr<<"add fd for write:"<<wi[i].fd<<"\n";
 		if(epoll_ctl(efd,EPOLL_CTL_ADD,wi[i].fd,&ee)){
 			cerr<<"epoll_ctl add error\n";
 			abort();
 		}
 	}
+	//uint32_t recv_cnt=0;
 	while(1){
 		int n=epoll_wait(efd,ret,num_fd,-1);
 		for(int i=0;i<n;i++){
@@ -138,10 +140,13 @@ void* read_work(void*arg){
 				cerr<<"fd:"<<fd<<" error\n";
 				continue;
 			}else{
-				if(wi_tmp->_wi->read()){
-					wi_tmp->_wi->arr->print();
+				int ret=-1;
+				while((ret=wi_tmp->_wi->read())){
+					//wi_tmp->_wi->arr->print();
+					if(ret<0){
+						abort();
+					}
 					if(*(um[wi_tmp->_wi->get_type()]->arr)==*(wi_tmp->_wi->arr)){
-						wi_tmp->count++;
 					}else{
 						cerr<<"origin:";
 						um[wi_tmp->_wi->get_type()]->arr->print();
@@ -156,12 +161,13 @@ void* read_work(void*arg){
 						cerr<<"can't find key:"<<wi_tmp->_wi->get_type()<<"\n";
 					}
 					delete wi_tmp->_wi;
+					//cerr<<"recvice cnt:"<<++recv_cnt<<"\n";
 					wi_tmp->count++;
 					wi_tmp->reset(false);
 				}
 			}
 		}
-		usleep(us_sleep);
+		//usleep(us_sleep);
 	}
 	return NULL;
 }

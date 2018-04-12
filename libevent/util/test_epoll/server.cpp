@@ -72,7 +72,7 @@ void* process_work(void*arg){
 			}
 			vec.clear();
 		}
-		continue;
+		//continue;
 		for(uint32_t i=0;i<vec_write.size();i++){
 			pwi->write_rool_buf[i].push_back(vec_write[i]);
 			//for(uint32_t j=0;j<vec_write[i].size();j++){
@@ -84,9 +84,10 @@ void* process_work(void*arg){
 			}
 		}
 		if(!flag){
-			usleep(500000);
-			flag=false;
+			usleep(5000);
+			//cerr<<"no data process\n";
 		}
+		flag=false;
 	}
 	return NULL;
 }
@@ -151,15 +152,18 @@ int main(){
 	}
 	while(1){
 		sleep(20);
+		uint32_t cnt=0;
 		cout<<"read roll_buf:";
-		//for(int i=0;i<num_read;i++){
-		//	read_roll_buf[i].print();
-		//}
-		//cout<<"write roll_buf:";
-		//for(int i=0;i<num_write;i++){
-		//	write_roll_buf[i].print();
-		//}
-		cout<<"statistic info\n";
+		for(int i=0;i<num_read;i++){
+			cnt+=read_roll_buf[i].get_element_size();
+		}
+		cout<<cnt<<"\n";
+		cout<<"write roll_buf:";
+		cnt=0;
+		for(int i=0;i<num_write;i++){
+			cnt+=write_roll_buf[i].get_element_size();
+		}
+		cout<<cnt<<"\n";
 	}
 
 }

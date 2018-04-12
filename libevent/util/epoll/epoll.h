@@ -147,21 +147,24 @@ namespace xzhang_epoll{
 			void write(){
 				vector<T*> vec;
 				cout<<"write:"<<efd<<"\n";
-				uint64_t tmp_cnt=0;
+				//uint64_t tmp_cnt=0;
 				while(1){
 					vec.clear();
-					int n=epoll_wait(efd,ret,maxevent,2000);
+					int num_ret=epoll_wait(efd,ret,maxevent,2000);
 					out_roll_buf->pop_front(vec,out_roll_buf->get_element_size());
-					if(vec.size()){
-						tmp_cnt+=vec.size();
-						cout<<"tmp_cnt="<<tmp_cnt<<"\n";
-					}
+					//if(vec.size()){
+					//	tmp_cnt+=vec.size();
+					//	cout<<"tmp_cnt="<<tmp_cnt<<"\n";
+					//}
 					//for(int i=0;i<vec.size();i++){
 					//	delete vec[i];
 					//}
 					//continue;
 					if(!vec.size()){
+						//cerr<<"not fetch data\n";
 						usleep(5000);
+					}else{
+						//cerr<<"fetch data:"<<vec.size()<<" n="<<num_ret<<"\n";
 					}
 					for(typename vector<T*>::iterator iter=vec.begin();iter!=vec.end();\
 							iter++){
@@ -185,7 +188,7 @@ namespace xzhang_epoll{
 						}
 						um[fd]->push_back(*iter);
 					}
-					for(int i=0;i<n;i++){
+					for(int i=0;i<num_ret;i++){
 						int fd=ret[i].data.fd;
                         if ((ret[i].events & EPOLLERR) || (ret[i].events & EPOLLHUP) || (!(ret[i].events & EPOLLOUT))) {
                     	    // An error has occured on this fd, or the socket is not ready for reading (why were we notified then?).
@@ -193,6 +196,7 @@ namespace xzhang_epoll{
                     	    close(fd);
 							free_vec(fd);
                         } else{
+							//cerr<<"fd:"<<fd;
 							int num=um[fd]->size()*2;
 							if((*um[fd])[0]->get_pos()>=16){
 								num--;
@@ -216,8 +220,10 @@ namespace xzhang_epoll{
 								iov[start].iov_base=ptlv->buf;
 								iov[start++].iov_len=ptlv->length;
 							}
+							int64_t count=0;
 							count=writev(fd,iov,start);
 							delete[] iov;
+							//cerr<<" count:"<<count<<"\n";
     						if(count==-1){
         						if (!(errno == EAGAIN || errno == EWOULDBLOCK)) {
 									free_vec(fd);
@@ -241,8 +247,9 @@ namespace xzhang_epoll{
 									}
 								}
 								um[fd]->erase(um[fd]->begin(),um[fd]->begin()+iter);
+								//cerr<<"write data:"<<iter<<"\n";
 								if(um[fd]->size()==0){
-                   					int retval = epoll_ctl(efd, EPOLL_CTL_DEL, fd, &ret[i]);
+                   					int retval = epoll_ctl(efd, EPOLL_CTL_DEL, fd, NULL);
 									num_client--;
                    					if (retval == -1) {
 				   						perror("error delete epoll_ctl\n");
